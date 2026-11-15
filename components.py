@@ -1,7 +1,7 @@
 """Reusable HTML components for the FIREWATCH UI."""
 import html
 import streamlit as st
-from .theme import COLORS
+from theme import COLORS
 
 
 def header(status_text: str):
