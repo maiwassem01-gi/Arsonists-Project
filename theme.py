@@ -13,12 +13,13 @@ _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"], .stApp { font-family: %(font)s; color: %(text)s; }
 .stApp { background: %(bg)s; }
-header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
-footer, #MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
+header[data-testid="stHeader"] { background: transparent; height: 2.2rem; z-index: 999990; }
+footer, #MainMenu, [data-testid="stDecoration"], [data-testid="stToolbarActions"],
+[data-testid="stMainMenu"], [data-testid="stAppDeployButton"], .stDeployButton { display: none !important; }
 /* keep the sidebar open/close buttons visible */
 [data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"] button, [data-testid="stSidebarCollapsedControl"] button { color: %(cyan)s !important; background: %(surface)s !important; border: 1px solid %(border)s; border-radius: 4px; }
-.block-container { padding: 2.6rem 1.3rem 1rem 1.3rem; max-width: 100%%; }
+[data-testid="stSidebarCollapseButton"] button, [data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stExpandSidebarButton"] button { color: %(cyan)s !important; background: %(surface)s !important; border: 1px solid %(border)s; border-radius: 4px; display: inline-flex !important; visibility: visible !important; opacity: 1 !important; }
 h1,h2,h3,h4 { color: %(text)s; font-weight: 600; letter-spacing: .02em; }
 hr { border-color: %(border)s; }
 
