@@ -185,41 +185,71 @@ SENSOR_COLORS = {"MODIS": COLORS["red"], "VIIRS": COLORS["orange"]}
 SENSOR_LABELS = {"MODIS": "MODIS (1km)", "VIIRS": "VIIRS (375m)"}
 
 
+# Canary Islands are drawn as an inset: shifted into the Atlantic south-west of Spain.
+# Hover text always shows the REAL coordinates.
+CAN_DLAT, CAN_DLON = 6.5, 2.8
+CAN_FRAME = [[-16.0, 33.6], [-9.9, 33.6], [-9.9, 36.5], [-16.0, 36.5], [-16.0, 33.6]]
+
+
+def _is_canary_bounds(b):
+    return b[3] < 30 and b[2] < -12
+
+
 @st.cache_data
-def province_geojson():
+def province_geojson(shift_canary: bool):
+    from shapely.affinity import translate
     g = provinces_gdf.copy()
     g["geometry"] = g.geometry.simplify(0.01, preserve_topology=True)
+    if shift_canary:
+        g["geometry"] = [
+            translate(geom, xoff=CAN_DLON, yoff=CAN_DLAT) if _is_canary_bounds(geom.bounds) else geom
+            for geom in g.geometry
+        ]
     return json.loads(g.to_json())
 
 
-def _map_layers():
-    return [
+def _map_layers(shift_canary):
+    layers = [
         dict(sourcetype="raster", source=[ESRI_SAT], below="traces", opacity=0.5),
-        dict(sourcetype="geojson", source=province_geojson(), type="line", below="traces",
-             color="#6f93bd", line=dict(width=0.8), opacity=0.7),
+        dict(sourcetype="geojson", source=province_geojson(shift_canary), type="line", below="traces",
+             color="#6f93bd", line=dict(width=0.8), opacity=0.75),
     ]
+    if shift_canary:
+        frame = {"type": "Feature", "properties": {},
+                 "geometry": {"type": "LineString", "coordinates": CAN_FRAME}}
+        layers.append(dict(sourcetype="geojson", source=frame, type="line", below="traces",
+                           color="#9db7d6", line=dict(width=1.2), opacity=0.9))
+    return layers
 
 
-def _add_points(fig, df, subplot, show_legend):
+def _add_points(fig, df, shift_canary, show_legend):
+    lat, lon = df["lat"].to_numpy(copy=True), df["lon"].to_numpy(copy=True)
+    plot_lat, plot_lon = lat.copy(), lon.copy()
+    if shift_canary:
+        can = (lat < 30) & (lon < -12)
+        plot_lat[can] += CAN_DLAT
+        plot_lon[can] += CAN_DLON
     fam = np.where(df["sensor"].astype(str).str.upper().str.contains("VIIRS"), "VIIRS", "MODIS")
     for family in ("MODIS", "VIIRS"):
-        sub = df[fam == family]
-        if sub.empty:
+        m = fam == family
+        if not m.any():
             continue
         color = SENSOR_COLORS[family]
+        sub = df[m]
         custom = np.stack([sub["date"].dt.strftime("%Y-%m-%d"), sub["province"].astype(str),
-                           sub["frp"].astype(str), sub["satellite"].astype(str)], axis=-1)
-        for size, op in ((18, 0.14), (10, 0.30)):  # soft glow halos
-            fig.add_trace(go.Scattermap(lat=sub["lat"], lon=sub["lon"], mode="markers", subplot=subplot,
+                           sub["frp"].astype(str), sub["satellite"].astype(str),
+                           np.round(lat[m], 4).astype(str), np.round(lon[m], 4).astype(str)], axis=-1)
+        for size, op in ((14, 0.10), (8, 0.22)):  # soft glow halos
+            fig.add_trace(go.Scattermap(lat=plot_lat[m], lon=plot_lon[m], mode="markers",
                                         marker=dict(size=size, color=color, opacity=op),
                                         hoverinfo="skip", showlegend=False))
         fig.add_trace(go.Scattermap(
-            lat=sub["lat"], lon=sub["lon"], mode="markers", subplot=subplot,
-            marker=dict(size=4, color="#ffd9a0" if family == "VIIRS" else "#ff9b9b", opacity=0.95),
+            lat=plot_lat[m], lon=plot_lon[m], mode="markers",
+            marker=dict(size=3.5, color="#ffb347" if family == "VIIRS" else "#ff6b6b", opacity=0.95),
             name=SENSOR_LABELS[family], showlegend=show_legend, customdata=custom,
             hovertemplate=("<b>%s</b><br>Date: %%{customdata[0]}<br>Province: %%{customdata[1]}"
-                           "<br>FRP: %%{customdata[2]}<br>Satellite: %%{customdata[3]}<br>"
-                           "%%{lat:.4f}, %%{lon:.4f}<extra></extra>") % SENSOR_LABELS[family]))
+                           "<br>FRP: %%{customdata[2]}<br>Satellite: %%{customdata[3]}"
+                           "<br>%%{customdata[4]}, %%{customdata[5]}<extra></extra>") % SENSOR_LABELS[family]))
 
 
 def build_points_map(height, show_legend=True):
@@ -233,9 +263,7 @@ def build_points_map(height, show_legend=True):
 
     all_spain = selected_prov == "All Spain"
     if all_spain:
-        center, zoom = dict(lat=39.9, lon=-3.4), 4.95
-        is_canary = (plot_pts["lat"] < 30) & (plot_pts["lon"] < -12)
-        main_pts, inset_pts = plot_pts[~is_canary], plot_pts[is_canary]
+        center, zoom = dict(lat=38.6, lon=-5.5), 4.5
     else:
         row = provinces_gdf[provinces_gdf["province"] == selected_prov]
         if len(row):
@@ -243,12 +271,17 @@ def build_points_map(height, show_legend=True):
             center = dict(lat=(b[1] + b[3]) / 2, lon=(b[0] + b[2]) / 2)
         else:
             center = dict(lat=float(plot_pts["lat"].mean()), lon=float(plot_pts["lon"].mean()))
-        zoom, main_pts, inset_pts = 7.0, plot_pts, plot_pts.iloc[0:0]
+        zoom = 7.0
 
     fig = go.Figure()
-    _add_points(fig, main_pts, "map", show_legend)
-    layout = dict(
-        map=dict(style="carto-darkmatter", center=center, zoom=zoom, layers=_map_layers()),
+    _add_points(fig, plot_pts, all_spain, show_legend)
+    if all_spain:
+        fig.add_trace(go.Scattermap(lat=[33.0], lon=[-13.0], mode="text", text=["CANARY ISLANDS"],
+                                    textfont=dict(size=10, color="#9db7d6"), hoverinfo="skip",
+                                    showlegend=False))
+    fig.update_layout(
+        map=dict(style="carto-darkmatter", center=center, zoom=zoom, layers=_map_layers(all_spain),
+                 domain=dict(x=[0, 1], y=[0, 1])),
         height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color=COLORS["text"], size=11),
         legend=dict(bgcolor="rgba(13,20,34,.88)", bordercolor=COLORS["border"], borderwidth=1,
@@ -259,13 +292,6 @@ def build_points_map(height, show_legend=True):
                           text=f"<b>SELECTED REGION:</b> {selected_prov}<br>"
                                "<span style='color:#7f8fa9'>Details on hover</span>")],
     )
-    if all_spain:  # Canary Islands inset, bottom-left, like the reference
-        _add_points(fig, inset_pts, "map2", False)
-        layout["map2"] = dict(style="carto-darkmatter", center=dict(lat=28.4, lon=-15.7), zoom=4.3,
-                              layers=_map_layers(), domain=dict(x=[0.012, 0.2], y=[0.03, 0.27]))
-        layout["shapes"] = [dict(type="rect", xref="paper", yref="paper", x0=0.012, x1=0.2, y0=0.03,
-                                 y1=0.27, line=dict(color="#6f93bd", width=1))]
-    fig.update_layout(**layout)
     return fig, sampled
 
 
