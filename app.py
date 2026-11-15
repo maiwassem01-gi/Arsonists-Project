@@ -6,8 +6,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from ui import apply_theme, style_fig, COLORS
-from ui.components import header, kpi_card, panel_title, recent_table, alert_box
+from theme import apply_theme, style_fig, COLORS
+from components import header, kpi_card, panel_title, recent_table, alert_box
 
 st.set_page_config(
     page_title="FIREWATCH INTELLIGENCE",
