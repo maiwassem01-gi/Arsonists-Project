@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -179,6 +180,48 @@ def build_comp_fig(comp_year, height):
     return style_fig(fig, height), yr_total, usual_total, pct
 
 
+ESRI_SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+SENSOR_COLORS = {"MODIS": COLORS["red"], "VIIRS": COLORS["orange"]}
+SENSOR_LABELS = {"MODIS": "MODIS (1km)", "VIIRS": "VIIRS (375m)"}
+
+
+@st.cache_data
+def province_geojson():
+    g = provinces_gdf.copy()
+    g["geometry"] = g.geometry.simplify(0.01, preserve_topology=True)
+    return json.loads(g.to_json())
+
+
+def _map_layers():
+    return [
+        dict(sourcetype="raster", source=[ESRI_SAT], below="traces", opacity=0.5),
+        dict(sourcetype="geojson", source=province_geojson(), type="line", below="traces",
+             color="#6f93bd", line=dict(width=0.8), opacity=0.7),
+    ]
+
+
+def _add_points(fig, df, subplot, show_legend):
+    fam = np.where(df["sensor"].astype(str).str.upper().str.contains("VIIRS"), "VIIRS", "MODIS")
+    for family in ("MODIS", "VIIRS"):
+        sub = df[fam == family]
+        if sub.empty:
+            continue
+        color = SENSOR_COLORS[family]
+        custom = np.stack([sub["date"].dt.strftime("%Y-%m-%d"), sub["province"].astype(str),
+                           sub["frp"].astype(str), sub["satellite"].astype(str)], axis=-1)
+        for size, op in ((18, 0.14), (10, 0.30)):  # soft glow halos
+            fig.add_trace(go.Scattermap(lat=sub["lat"], lon=sub["lon"], mode="markers", subplot=subplot,
+                                        marker=dict(size=size, color=color, opacity=op),
+                                        hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scattermap(
+            lat=sub["lat"], lon=sub["lon"], mode="markers", subplot=subplot,
+            marker=dict(size=4, color="#ffd9a0" if family == "VIIRS" else "#ff9b9b", opacity=0.95),
+            name=SENSOR_LABELS[family], showlegend=show_legend, customdata=custom,
+            hovertemplate=("<b>%s</b><br>Date: %%{customdata[0]}<br>Province: %%{customdata[1]}"
+                           "<br>FRP: %%{customdata[2]}<br>Satellite: %%{customdata[3]}<br>"
+                           "%%{lat:.4f}, %%{lon:.4f}<extra></extra>") % SENSOR_LABELS[family]))
+
+
 def build_points_map(height, show_legend=True):
     if len(hs_filt) > 6000:
         plot_pts = hs_filt.sample(6000, random_state=42)
@@ -187,20 +230,42 @@ def build_points_map(height, show_legend=True):
         plot_pts, sampled = hs_filt, False
     if len(plot_pts) == 0:
         return None, sampled
-    fig = px.scatter_map(
-        plot_pts, lat="lat", lon="lon", color="sensor",
-        hover_data=["date", "province", "frp", "satellite"],
-        zoom=4.5 if selected_prov == "All Spain" else 7.0,
-        height=height, map_style="carto-darkmatter",
-        color_discrete_sequence=[COLORS["red"], COLORS["orange"], COLORS["amber"], COLORS["cyan"]],
-    )
-    fig.update_traces(marker=dict(size=6, opacity=0.8))
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=COLORS["text"]),
-        legend=dict(bgcolor="rgba(13,20,34,.85)", bordercolor=COLORS["border"], borderwidth=1,
+
+    all_spain = selected_prov == "All Spain"
+    if all_spain:
+        center, zoom = dict(lat=39.9, lon=-3.4), 4.95
+        is_canary = (plot_pts["lat"] < 30) & (plot_pts["lon"] < -12)
+        main_pts, inset_pts = plot_pts[~is_canary], plot_pts[is_canary]
+    else:
+        row = provinces_gdf[provinces_gdf["province"] == selected_prov]
+        if len(row):
+            b = row.total_bounds
+            center = dict(lat=(b[1] + b[3]) / 2, lon=(b[0] + b[2]) / 2)
+        else:
+            center = dict(lat=float(plot_pts["lat"].mean()), lon=float(plot_pts["lon"].mean()))
+        zoom, main_pts, inset_pts = 7.0, plot_pts, plot_pts.iloc[0:0]
+
+    fig = go.Figure()
+    _add_points(fig, main_pts, "map", show_legend)
+    layout = dict(
+        map=dict(style="carto-darkmatter", center=center, zoom=zoom, layers=_map_layers()),
+        height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=COLORS["text"], size=11),
+        legend=dict(bgcolor="rgba(13,20,34,.88)", bordercolor=COLORS["border"], borderwidth=1,
                     x=0.99, xanchor="right", y=0.02, yanchor="bottom"),
+        annotations=[dict(xref="paper", yref="paper", x=0.01, y=0.99, xanchor="left", yanchor="top",
+                          showarrow=False, align="left", borderpad=6, bgcolor="rgba(13,20,34,.9)",
+                          bordercolor=COLORS["border"], borderwidth=1,
+                          text=f"<b>SELECTED REGION:</b> {selected_prov}<br>"
+                               "<span style='color:#7f8fa9'>Details on hover</span>")],
     )
+    if all_spain:  # Canary Islands inset, bottom-left, like the reference
+        _add_points(fig, inset_pts, "map2", False)
+        layout["map2"] = dict(style="carto-darkmatter", center=dict(lat=28.4, lon=-15.7), zoom=4.3,
+                              layers=_map_layers(), domain=dict(x=[0.012, 0.2], y=[0.03, 0.27]))
+        layout["shapes"] = [dict(type="rect", xref="paper", yref="paper", x0=0.012, x1=0.2, y0=0.03,
+                                 y1=0.27, line=dict(color="#6f93bd", width=1))]
+    fig.update_layout(**layout)
     return fig, sampled
 
 
@@ -232,7 +297,7 @@ with tab_overview:
             panel_title(f"Satellite Detections · {selected_prov}")
             fig_pts, sampled = build_points_map(470)
             if fig_pts is not None:
-                st.plotly_chart(fig_pts, use_container_width=True, key="ov_points")
+                st.plotly_chart(fig_pts, use_container_width=True, key="ov_points", config={"scrollZoom": True})
                 if sampled:
                     st.caption(f"Showing a random sample of 6,000 of {len(hs_filt):,} detections.")
             else:
@@ -342,7 +407,7 @@ with tab_sat:
             if sampled:
                 st.caption(f"Showing a random sample of 6,000 out of {len(hs_filt):,} matching detections "
                            f"(CSV downloads all {len(hs_filt):,}).")
-            st.plotly_chart(fig_big, use_container_width=True, key="sat_points")
+            st.plotly_chart(fig_big, use_container_width=True, key="sat_points", config={"scrollZoom": True})
         else:
             st.info("No individual hotspots found for the selected filter.")
 
