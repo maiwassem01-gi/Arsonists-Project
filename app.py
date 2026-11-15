@@ -361,13 +361,24 @@ with tab_activity:
             panel_title("Province Activity Map (Click to Select)")
             prov_totals = d_period.groupby("province", as_index=False)["count_harmonized"].sum()
             map_gdf = provinces_gdf.merge(prov_totals, on="province", how="left").fillna({"count_harmonized": 0})
+            from shapely.affinity import translate
+            map_gdf["geometry"] = [
+                translate(g, xoff=CAN_DLON, yoff=CAN_DLAT) if _is_canary_bounds(g.bounds) else g
+                for g in map_gdf.geometry
+            ]  # Canary Islands drawn as an inset so Spain can fill the panel
             fig_map = px.choropleth(
                 map_gdf, geojson=map_gdf.__geo_interface__, locations="province",
                 featureidkey="properties.province", color="count_harmonized",
                 color_continuous_scale="YlOrRd", labels={"count_harmonized": "Square-Days"},
             )
             fig_map.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-            style_fig(fig_map, 480, legend_top=False)
+            style_fig(fig_map, 500, legend_top=False)
+            fig_map.update_layout(
+                margin=dict(l=0, r=0, t=0, b=0),
+                coloraxis_colorbar=dict(orientation="h", x=0.5, xanchor="center", y=0.0, yanchor="top",
+                                        len=0.6, thickness=10, outlinewidth=0,
+                                        title=dict(text="Square-Days", side="top")),
+            )
             map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="prov_map")
             if map_event and map_event.selection and map_event.selection.get("points"):
                 clicked_prov = map_event.selection["points"][0].get("location")
