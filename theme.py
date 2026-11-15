@@ -13,8 +13,12 @@ _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"], .stApp { font-family: %(font)s; color: %(text)s; }
 .stApp { background: %(bg)s; }
-header[data-testid="stHeader"], footer, #MainMenu, [data-testid="stToolbar"] { display: none !important; }
-.block-container { padding: 0.9rem 1.3rem 1rem 1.3rem; max-width: 100%%; }
+header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
+footer, #MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
+/* keep the sidebar open/close buttons visible */
+[data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"] button, [data-testid="stSidebarCollapsedControl"] button { color: %(cyan)s !important; background: %(surface)s !important; border: 1px solid %(border)s; border-radius: 4px; }
+.block-container { padding: 2.6rem 1.3rem 1rem 1.3rem; max-width: 100%%; }
 h1,h2,h3,h4 { color: %(text)s; font-weight: 600; letter-spacing: .02em; }
 hr { border-color: %(border)s; }
 
@@ -53,7 +57,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]:hover { border-color: #2d4263 !i
 .fw-status { font-size: .72rem; color: #4ade80; border: 1px solid #14532d; background: #052e16; padding: .3rem .7rem; border-radius: 4px; letter-spacing: .05em; }
 
 /* kpi */
-.fw-kpi { background: %(panel)s; border: 1px solid %(border)s; border-radius: 6px; padding: .7rem 1rem; display:flex; justify-content:space-between; align-items:flex-end; min-height: 92px; }
+.fw-kpi { background: %(panel)s; border: 1px solid %(border)s; border-radius: 6px; padding: .7rem 1rem; display:flex; justify-content:space-between; align-items:flex-end; height: 96px; }
 .fw-kpi-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: %(muted)s; }
 .fw-kpi-value { font-size: 1.9rem; font-weight: 600; line-height: 1.2; }
 .fw-kpi-note { font-size: .72rem; color: %(muted)s; }
