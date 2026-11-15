@@ -1,0 +1,7 @@
+step,rows
+"Raw rows (3 sensors, after basic cleaning)",387659
+After confidence filter,367005
+After province join (all inside Spain),367005
+Flagged: volcanic (La Palma 2021-22),30263
+Flagged: static heat sources,3908
+Usable for harmonization,332834
