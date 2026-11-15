@@ -92,16 +92,17 @@ with tab_explorer:
 
     min_date = daily_df["date"].min().date()
     max_date = daily_df["date"].max().date()
-    d_col1, d_col2 = st.sidebar.columns(2)
-    start_date = d_col1.date_input(
-        "Start Date", value=min_date, min_value=min_date, max_value=max_date
+    date_range = st.sidebar.date_input(
+        "Date Range (ends Dec 2025)",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
     )
-    end_date = d_col2.date_input(
-        "End Date", value=max_date, min_value=min_date, max_value=max_date
-    )
-    start_dt, end_dt = pd.to_datetime(start_date), pd.to_datetime(end_date)
-    if start_dt > end_dt:
-        start_dt, end_dt = end_dt, start_dt
+
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        start_dt, end_dt = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
+    else:
+        start_dt, end_dt = pd.to_datetime(min_date), pd.to_datetime(max_date)
 
     show_raw_sensors = st.sidebar.checkbox(
         "Show raw Terra, Aqua & VIIRS lines", value=True
@@ -130,7 +131,7 @@ with tab_explorer:
     k4.metric("Peak Single-Day Activity", f"{peak_val:,.0f} ({peak_day})")
 
     # --- Row 1: Province Choropleth Map + Calendar Heatmap ---
-    col_map, col_heat = st.columns([1.15, 1])
+    col_map, col_heat = st.columns([1.05, 1.25])
 
     with col_map:
         st.subheader("Province Activity Map (Click to Select)")
@@ -148,28 +149,10 @@ with tab_explorer:
             featureidkey="properties.province",
             color="count_harmonized",
             color_continuous_scale="YlOrRd",
-            projection="mercator",
             labels={"count_harmonized": "Square-Days"},
         )
-        fig_map.update_geos(
-            fitbounds="locations",
-            visible=False,
-            bgcolor="rgba(0,0,0,0)",
-        )
-        fig_map.update_layout(
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=450,
-            paper_bgcolor="rgba(0,0,0,0)",
-            coloraxis_colorbar=dict(
-                orientation="h",
-                y=-0.02,
-                x=0.5,
-                xanchor="center",
-                len=0.85,
-                thickness=12,
-                title="Square-Days",
-            ),
-        )
+        fig_map.update_geos(fitbounds="locations", visible=False)
+        fig_map.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=390)
 
         map_event = st.plotly_chart(
             fig_map, use_container_width=True, on_select="rerun", key="prov_map"
@@ -214,7 +197,7 @@ with tab_explorer:
                 labels=dict(x="Month", y="Year", color="Square-Days"),
             )
             fig_heat.update_yaxes(dtick=2)
-            fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=415)
+            fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=350)
             st.plotly_chart(fig_heat, use_container_width=True)
         else:
             avail_years = sorted(m_filt["year"].unique().tolist())
@@ -249,7 +232,7 @@ with tab_explorer:
                 labels=dict(x="Day of Month", y="Month", color="Square-Days"),
             )
             fig_d_heat.update_yaxes(dtick=1)
-            fig_d_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=365)
+            fig_d_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=310)
             st.plotly_chart(fig_d_heat, use_container_width=True)
 
     # --- Row 2: Sensor Harmonization Toggle + "This Year vs. The Usual" ---
