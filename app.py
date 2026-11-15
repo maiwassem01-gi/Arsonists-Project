@@ -23,21 +23,27 @@ PROVINCE_RENAME = {
 }
 
 
+def resolve_path(filename: str) -> str:
+    if os.path.exists(filename):
+        return filename
+    return os.path.join("data", filename)
+
+
 @st.cache_data
 def load_daily() -> pd.DataFrame:
-    df = pd.read_parquet("data/harmonized_daily_by_province.parquet")
+    df = pd.read_parquet(resolve_path("harmonized_daily_by_province.parquet"))
     df["date"] = pd.to_datetime(df["date"])
     return df
 
 
 @st.cache_data
 def load_monthly() -> pd.DataFrame:
-    return pd.read_parquet("data/harmonized_monthly_by_province.parquet")
+    return pd.read_parquet(resolve_path("harmonized_monthly_by_province.parquet"))
 
 
 @st.cache_data
 def load_provinces() -> gpd.GeoDataFrame:
-    gdf = gpd.read_file("data/spain_provinces.gpkg").to_crs("EPSG:4326")
+    gdf = gpd.read_file(resolve_path("spain_provinces.gpkg")).to_crs("EPSG:4326")
     gdf = gdf[["name", "geometry"]].rename(columns={"name": "province"})
     gdf["province"] = gdf["province"].replace(PROVINCE_RENAME)
     return gdf
@@ -45,7 +51,7 @@ def load_provinces() -> gpd.GeoDataFrame:
 
 @st.cache_data
 def load_hotspots() -> pd.DataFrame:
-    df = pd.read_parquet("data/clean_hotspots.parquet")
+    df = pd.read_parquet(resolve_path("clean_hotspots.parquet"))
     df["date"] = pd.to_datetime(df["date"])
     return df
 
@@ -86,17 +92,16 @@ with tab_explorer:
 
     min_date = daily_df["date"].min().date()
     max_date = daily_df["date"].max().date()
-    date_range = st.sidebar.date_input(
-        "Date Range (ends Dec 2025)",
-        value=(min_date, max_date),
-        min_value=min_date,
-        max_value=max_date,
+    d_col1, d_col2 = st.sidebar.columns(2)
+    start_date = d_col1.date_input(
+        "Start Date", value=min_date, min_value=min_date, max_value=max_date
     )
-
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_dt, end_dt = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
-    else:
-        start_dt, end_dt = pd.to_datetime(min_date), pd.to_datetime(max_date)
+    end_date = d_col2.date_input(
+        "End Date", value=max_date, min_value=min_date, max_value=max_date
+    )
+    start_dt, end_dt = pd.to_datetime(start_date), pd.to_datetime(end_date)
+    if start_dt > end_dt:
+        start_dt, end_dt = end_dt, start_dt
 
     show_raw_sensors = st.sidebar.checkbox(
         "Show raw Terra, Aqua & VIIRS lines", value=True
@@ -124,7 +129,7 @@ with tab_explorer:
     k3.metric("Days with Fire Activity", f"{active_days:,}")
     k4.metric("Peak Single-Day Activity", f"{peak_val:,.0f} ({peak_day})")
 
-   # --- Row 1: Province Choropleth Map + Calendar Heatmap ---
+    # --- Row 1: Province Choropleth Map + Calendar Heatmap ---
     col_map, col_heat = st.columns([1.15, 1])
 
     with col_map:
@@ -436,31 +441,4 @@ with tab_about:
         """
         ### 1. Data Sources & Temporal Coverage
         - **Time Span:** **November 1, 2000 – December 31, 2025** (dataset ends in December 2025).
-        - **Geographic Scope:** All 52 provinces of Spain, including the **Balearic Islands** and **Canary Islands**.
-        - **Satellites & Instruments:** NASA FIRMS **MODIS Collection 6.1** (Terra & Aqua, 1 km resolution) and **VIIRS** (Suomi-NPP & NOAA-20, 375 m resolution).
-
-        ### 2. Quality Filtering & Artifact Removal
-        - **Vegetation Fire & Confidence Filter:** Retained presumed vegetation fires (`type == 0`) with MODIS confidence `≥ 30` and VIIRS confidence `nominal` or `high`.
-        - **Volcanic Eruption Exclusion:** Flagged **30,263 detections** from the 2021–2022 Cumbre Vieja volcanic eruption in La Palma (Santa Cruz de Tenerife) so geological lava activity does not distort wildfire statistics.
-        - **Static Heat Source Removal:** Flagged **3,908 detections** occurring in ~1 km grid cells active across `≥ 15` distinct years (persistent industrial plants, refineries, and urban heat anomalies).
-
-        ### 3. Spatial & Cross-Sensor Harmonization
-        - **1 km Grid Deduplication (`Burning Square-Days`):** Detections are snapped to a uniform ~1 km latitude/longitude grid (`0.01°` cells) and deduplicated per satellite, province, and day so higher-resolution 375 m VIIRS oversampling does not inflate counts relative to 1 km MODIS.
-        - **FRP Threshold & Overlap Calibration:** S-NPP VIIRS detections are filtered at `FRP ≥ 6 MW` to align detection sensitivity with MODIS Aqua, then scaled using overlap-period ratios across three seamless eras:
-          - **Nov 2000 – Jul 2002:** Scaled MODIS Terra (`Terra_scaled`)
-          - **Aug 2002 – Dec 2011:** MODIS Aqua baseline (`Aqua`)
-          - **Jan 2012 – Dec 2025:** Scaled VIIRS S-NPP (`VIIRS_scaled`)
-        """
-    )
-
-    if os.path.exists("data/data_quality_summary.csv"):
-        st.subheader("Data Cleaning & Filtering Pipeline Summary")
-        st.dataframe(
-            pd.read_csv("data/data_quality_summary.csv"),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    if os.path.exists("data/harmonized_yearly_plot.png"):
-        st.subheader("Harmonized Spain Fire Activity (2000–2025)")
-        st.image("data/harmonized_yearly_plot.png", use_container_width=True)
+        - **Geographic Scope:** All 52 provinces of Spain, including the **Balearic Islands** and **Canary
