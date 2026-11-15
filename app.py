@@ -441,4 +441,33 @@ with tab_about:
         """
         ### 1. Data Sources & Temporal Coverage
         - **Time Span:** **November 1, 2000 – December 31, 2025** (dataset ends in December 2025).
-        - **Geographic Scope:** All 52 provinces of Spain, including the **Balearic Islands** and **Canary
+        - **Geographic Scope:** All 52 provinces of Spain, including the **Balearic Islands** and **Canary Islands**.
+        - **Satellites & Instruments:** NASA FIRMS **MODIS Collection 6.1** (Terra & Aqua, 1 km resolution) and **VIIRS** (Suomi-NPP & NOAA-20, 375 m resolution).
+
+        ### 2. Quality Filtering & Artifact Removal
+        - **Vegetation Fire & Confidence Filter:** Retained presumed vegetation fires (`type == 0`) with MODIS confidence `≥ 30` and VIIRS confidence `nominal` or `high`.
+        - **Volcanic Eruption Exclusion:** Flagged **30,263 detections** from the 2021–2022 Cumbre Vieja volcanic eruption in La Palma (Santa Cruz de Tenerife) so geological lava activity does not distort wildfire statistics.
+        - **Static Heat Source Removal:** Flagged **3,908 detections** occurring in ~1 km grid cells active across `≥ 15` distinct years (persistent industrial plants, refineries, and urban heat anomalies).
+
+        ### 3. Spatial & Cross-Sensor Harmonization
+        - **1 km Grid Deduplication (`Burning Square-Days`):** Detections are snapped to a uniform ~1 km latitude/longitude grid (`0.01°` cells) and deduplicated per satellite, province, and day so higher-resolution 375 m VIIRS oversampling does not inflate counts relative to 1 km MODIS.
+        - **FRP Threshold & Overlap Calibration:** S-NPP VIIRS detections are filtered at `FRP ≥ 6 MW` to align detection sensitivity with MODIS Aqua, then scaled using overlap-period ratios across three seamless eras:
+          - **Nov 2000 – Jul 2002:** Scaled MODIS Terra (`Terra_scaled`)
+          - **Aug 2002 – Dec 2011:** MODIS Aqua baseline (`Aqua`)
+          - **Jan 2012 – Dec 2025:** Scaled VIIRS S-NPP (`VIIRS_scaled`)
+        """
+    )
+
+    summary_path = resolve_path("data_quality_summary.csv")
+    if os.path.exists(summary_path):
+        st.subheader("Data Cleaning & Filtering Pipeline Summary")
+        st.dataframe(
+            pd.read_csv(summary_path),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    plot_path = resolve_path("harmonized_yearly_plot.png")
+    if os.path.exists(plot_path):
+        st.subheader("Harmonized Spain Fire Activity (2000–2025)")
+        st.image(plot_path, use_container_width=True)
