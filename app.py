@@ -124,8 +124,8 @@ with tab_explorer:
     k3.metric("Days with Fire Activity", f"{active_days:,}")
     k4.metric("Peak Single-Day Activity", f"{peak_val:,.0f} ({peak_day})")
 
-    # --- Row 1: Province Choropleth Map + Calendar Heatmap ---
-    col_map, col_heat = st.columns([1.05, 1.25])
+   # --- Row 1: Province Choropleth Map + Calendar Heatmap ---
+    col_map, col_heat = st.columns([1.15, 1])
 
     with col_map:
         st.subheader("Province Activity Map (Click to Select)")
@@ -143,10 +143,28 @@ with tab_explorer:
             featureidkey="properties.province",
             color="count_harmonized",
             color_continuous_scale="YlOrRd",
+            projection="mercator",
             labels={"count_harmonized": "Square-Days"},
         )
-        fig_map.update_geos(fitbounds="locations", visible=False)
-        fig_map.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=390)
+        fig_map.update_geos(
+            fitbounds="locations",
+            visible=False,
+            bgcolor="rgba(0,0,0,0)",
+        )
+        fig_map.update_layout(
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=450,
+            paper_bgcolor="rgba(0,0,0,0)",
+            coloraxis_colorbar=dict(
+                orientation="h",
+                y=-0.02,
+                x=0.5,
+                xanchor="center",
+                len=0.85,
+                thickness=12,
+                title="Square-Days",
+            ),
+        )
 
         map_event = st.plotly_chart(
             fig_map, use_container_width=True, on_select="rerun", key="prov_map"
@@ -191,7 +209,7 @@ with tab_explorer:
                 labels=dict(x="Month", y="Year", color="Square-Days"),
             )
             fig_heat.update_yaxes(dtick=2)
-            fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=350)
+            fig_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=415)
             st.plotly_chart(fig_heat, use_container_width=True)
         else:
             avail_years = sorted(m_filt["year"].unique().tolist())
@@ -226,7 +244,7 @@ with tab_explorer:
                 labels=dict(x="Day of Month", y="Month", color="Square-Days"),
             )
             fig_d_heat.update_yaxes(dtick=1)
-            fig_d_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=310)
+            fig_d_heat.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=365)
             st.plotly_chart(fig_d_heat, use_container_width=True)
 
     # --- Row 2: Sensor Harmonization Toggle + "This Year vs. The Usual" ---
