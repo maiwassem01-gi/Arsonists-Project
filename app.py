@@ -293,7 +293,7 @@ with tab_overview:
 
     col_map, col_side = st.columns([3.6, 1.4])
     with col_map:
-        with st.container(border=True):
+        with st.container(border=True, height=550):
             panel_title(f"Satellite Detections · {selected_prov}")
             fig_pts, sampled = build_points_map(470)
             if fig_pts is not None:
@@ -303,7 +303,7 @@ with tab_overview:
             else:
                 st.info("No individual hotspots found for the selected filter.")
     with col_side:
-        with st.container(border=True):
+        with st.container(border=True, height=550):
             panel_title("Latest Detections in Selection")
             if len(hs_filt):
                 recent_table(hs_filt.sort_values("date", ascending=False).head(14)[["date", "lat", "lon", "sensor"]])
@@ -314,15 +314,15 @@ with tab_overview:
 
     b1, b2 = st.columns(2)
     with b1:
-        with st.container(border=True):
+        with st.container(border=True, height=450):
             panel_title("Harmonized Series vs. Raw Sensors")
-            st.plotly_chart(build_ts_fig(300), use_container_width=True, key="ov_ts")
+            st.plotly_chart(build_ts_fig(380), use_container_width=True, key="ov_ts")
     with b2:
-        with st.container(border=True):
+        with st.container(border=True, height=450):
             panel_title("This Year vs. The Usual (Historical Average)")
             avail_years = sorted(m_filt["year"].unique().tolist())
             comp_year = st.selectbox("Compare Year", avail_years, index=len(avail_years) - 1, key="comp_yr")
-            fig_comp, yr_total, usual_total, pct_diff = build_comp_fig(comp_year, 250)
+            fig_comp, yr_total, usual_total, pct_diff = build_comp_fig(comp_year, 260)
             st.caption(f"**{comp_year} total:** {yr_total:,.0f} square-days vs. "
                        f"**historical yearly mean:** {usual_total:,.0f} ({pct_diff:+.1f}%)")
             st.plotly_chart(fig_comp, use_container_width=True, key="ov_comp")
@@ -331,7 +331,7 @@ with tab_overview:
 with tab_activity:
     col_cmap, col_heat = st.columns([1.05, 1.25])
     with col_cmap:
-        with st.container(border=True):
+        with st.container(border=True, height=560):
             panel_title("Province Activity Map (Click to Select)")
             prov_totals = d_period.groupby("province", as_index=False)["count_harmonized"].sum()
             map_gdf = provinces_gdf.merge(prov_totals, on="province", how="left").fillna({"count_harmonized": 0})
@@ -341,7 +341,7 @@ with tab_activity:
                 color_continuous_scale="YlOrRd", labels={"count_harmonized": "Square-Days"},
             )
             fig_map.update_geos(fitbounds="locations", visible=False, bgcolor="rgba(0,0,0,0)")
-            style_fig(fig_map, 420, legend_top=False)
+            style_fig(fig_map, 480, legend_top=False)
             map_event = st.plotly_chart(fig_map, use_container_width=True, on_select="rerun", key="prov_map")
             if map_event and map_event.selection and map_event.selection.get("points"):
                 clicked_prov = map_event.selection["points"][0].get("location")
@@ -351,7 +351,7 @@ with tab_activity:
                     st.rerun()
 
     with col_heat:
-        with st.container(border=True):
+        with st.container(border=True, height=560):
             panel_title("Calendar Heatmap")
             hm_mode = st.radio(
                 "Granularity",
@@ -367,7 +367,7 @@ with tab_activity:
                 fig_heat = px.imshow(piv, color_continuous_scale="YlOrRd", aspect="auto",
                                      labels=dict(x="Month", y="Year", color="Square-Days"))
                 fig_heat.update_yaxes(dtick=2)
-                st.plotly_chart(style_fig(fig_heat, 400, False), use_container_width=True)
+                st.plotly_chart(style_fig(fig_heat, 440, False), use_container_width=True)
             else:
                 avail_years_h = sorted(m_filt["year"].unique().tolist())
                 cal_year = st.selectbox("Select Year", avail_years_h,
@@ -418,7 +418,7 @@ with tab_sat:
         ].sum()
     )
     with d1:
-        with st.container(border=True):
+        with st.container(border=True, height=130):
             panel_title("1. Harmonized Daily Counts (Selected Region & Dates)")
             st.download_button(
                 label=f"⬇️ Download Daily Harmonized CSV ({len(daily_export):,} rows)",
@@ -427,7 +427,7 @@ with tab_sat:
                 mime="text/csv",
             )
     with d2:
-        with st.container(border=True):
+        with st.container(border=True, height=130):
             panel_title("2. Individual Satellite Hotspot Detections")
             st.download_button(
                 label=f"⬇️ Download Matching Hotspot Detections CSV ({len(hs_filt):,} detections)",
